@@ -1,4 +1,5 @@
 "use client";
+import Footer from "@components/Footer";
 import { Course } from "@lib/types";
 import {
   Button,
@@ -18,6 +19,7 @@ export default function Home() {
   //All courses state
   const [courses, setCourses] = useState<Course[]|null>(null);
   const [loadingCourses, setLoadingCourses] = useState(false);
+  const [loadingMyCourses, setLoadingMyCourses] = useState(false);
 
   //login state
   const [username, setUsername] = useState("");
@@ -29,16 +31,38 @@ export default function Home() {
   const [myCourses, setMyCourses] = useState<Course[]|null>(null);
 
   const loadCourses = async () => {
-    const resp = await axios.get("");
+    setLoadingCourses(true);
+
+    const resp = await axios.get("/api/courses");
+    setCourses(resp.data.courses);
+
+    setLoadingCourses(false);
   };
 
   const loadMyCourses = async () => {
-    const resp = await axios.get("/api/enrollments");
+    setLoadingMyCourses(true);
+
+    const resp = await axios.get("/api/enrollments", { 
+      headers: { 
+        Authorization: `Bearer ${token}`
+      } 
+    });
+
+    setMyCourses(resp.data.courses);
+    setLoadingMyCourses(false);
   };
 
   // load courses when app starts the first time
   useEffect(() => {
     loadCourses();
+    
+    // read token and authen username from local storage
+    const token = localStorage.getItem("token");
+    const authenUsername = localStorage.getItem("username");
+    if (token && authenUsername) {
+      setToken(token);
+      setAuthenUsername(authenUsername);
+    }
   }, []);
 
   // load my courses when the "token" is changed (logged in successfully)
@@ -51,10 +75,18 @@ export default function Home() {
 
   const login = async () => {
     try {
-      const resp = await axios.post("/api/user/login");
+      const resp = await axios.post("/api/user/login", { username: username, password: password });
 
       // set token and authenUsername here
+      setToken(resp.data.token);
+      setAuthenUsername(resp.data.username);
       // clear login form
+      setUsername("");
+      setPassword("");
+
+      //save token and authen username to local storage
+      localStorage.setItem("token", resp.data.token);
+      localStorage.setItem("username", resp.data.username);
 
     } catch (error) {
       if (error.response.data)
@@ -68,6 +100,12 @@ export default function Home() {
 
   const logout = () => {
     // set necessary state variables after logged out
+    setAuthenUsername("");
+    setToken("");
+    setMyCourses(null);
+
+    localStorage.removeItem("token")
+    localStorage.removeItem("username")
   };
 
   return (
@@ -79,7 +117,7 @@ export default function Home() {
         {/* all courses section */}
         <Paper withBorder p="md">
           <Title order={4}>All courses</Title>
-          {/* <Loader variant="dots" /> */}
+          { loadingCourses && ( <Loader type="dots" /> ) }
           {courses &&
             courses.map((course:Course) => (
               <Text key={course.courseNo}>
@@ -93,6 +131,7 @@ export default function Home() {
           <Title order={4}>Login</Title>
           
           {/* show login form if not logged in */}
+          { !authenUsername &&
           <Group align="flex-end">
             <TextInput
               label="Username"
@@ -105,24 +144,27 @@ export default function Home() {
               value={password}
             />
             <Button onClick={login}>Login</Button>
-          </Group>
+          </Group> }
 
           {/* show log out option if logged in successfully */}
-          {/* <Group>
+          { authenUsername && 
+          <Group>
             <Text fw="bold">Hi {authenUsername}!</Text>
             <Button color="red" onClick={logout}>
               Logout
             </Button>
-          </Group> */}
+          </Group> }
           
         </Paper>
 
         {/* enrollment section */}
         <Paper withBorder p="md">
           <Title order={4}>My courses</Title>
-          <Text c="dimmed">Please login to see your course(s)</Text>
+          { !authenUsername && <Text c="dimmed">Please login to see your course(s)</Text> }
 
-          {myCourses &&
+          { loadingMyCourses && ( <Loader type="dots" /> ) }
+
+          {myCourses && authenUsername &&
             myCourses.map((course) => (
               <Text key={course.courseNo}>
                 {course.courseNo} - {course.title}
@@ -130,6 +172,7 @@ export default function Home() {
             ))}
         </Paper>
       </Stack>
+      <Footer fullName="Pornpailin Jaowatthanaphong" studentId="660610777" year="2024"/>
     </Container>
   );
 }
